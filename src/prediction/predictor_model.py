@@ -3,63 +3,14 @@ import warnings
 import joblib
 import numpy as np
 import pandas as pd
-from typing import Union
 from schema.data_schema import ForecastingSchema
 from sklearn.exceptions import NotFittedError
 
-from data_models.schema_validator import Frequency
 
 warnings.filterwarnings("ignore")
 
 
 PREDICTOR_FILE_NAME = "predictor.joblib"
-
-def get_smoothing_factor(freq: str) -> float:
-    """
-    Calculates and returns a smoothing factor appropriate for the specified frequency
-    of a time series. The smoothing factor is inversely related to the frequency,
-    with more frequent data (e.g., secondly) getting a smaller factor, and less
-    frequent data (e.g., yearly) getting a larger factor. 
-
-    Args:
-        freq (str): A string representation of the time series frequency, expected
-                    to be one of the predefined frequencies (e.g., 'SECONDLY', 'MINUTELY',
-                    'HOURLY', 'DAILY', 'WEEKLY', 'MONTHLY', 'QUARTERLY', 'YEARLY', 'OTHER').
-                    These frequencies should correspond to a predefined enumeration or
-                    set of constants that define different possible time series frequencies.
-
-    Returns:
-        float: The smoothing factor determined based on the specified frequency. The factor
-               is a fraction, calculated as the reciprocal of a base number that varies
-               according to the frequency. The base numbers are chosen to scale the smoothing
-               factor in a way that is inversely proportional to the assumed volatility or
-               the level of detail associated with each frequency.
-
-    Raises:
-        ValueError: If the provided frequency is not recognized as one of the predefined
-                    frequencies, indicating that the caller has specified an invalid or
-                    unsupported frequency.
-    """
-    if freq == str(Frequency.SECONDLY):
-        return 1 / (120) # last 2 minutes
-    elif freq == str(Frequency.MINUTELY):
-        return 1 / (120) # last 2 hours
-    elif freq == str(Frequency.HOURLY):
-        return 1 / 48.0 # last 2 days
-    elif freq == str(Frequency.DAILY):
-        return 1 / 14. # last 2 weeks
-    elif freq == str(Frequency.WEEKLY):
-        return 1 / 8. # last 2 months
-    elif freq == str(Frequency.MONTHLY):
-        return 1 / 6. # last 2 quarters
-    elif freq == str(Frequency.QUARTERLY):
-        return 1 / 4. # last 1 year
-    elif freq == str(Frequency.YEARLY):
-        return 1 / 4. # last 4 years
-    elif freq == str(Frequency.OTHER):
-        return 1 / 20.
-    else:
-        raise ValueError(f"Invalid frequency: {freq}.")
 
 
 class Forecaster:
@@ -72,7 +23,7 @@ class Forecaster:
         data_schema: ForecastingSchema,
         history_forecast_ratio: int = None,
         init_period: int = 10,
-        alpha: Union[float, str] = "auto",
+        alpha: float = 0.1,
         random_state: int = 0,
         **kwargs,
     ):
@@ -93,22 +44,16 @@ class Forecaster:
                 Default is 10.
 
             alpha (float):
-                Smoothing factor. Default is "auto". If "auto", the smoothing factor is
-                calculated based on the frequency of the time series.
+                Smoothing factor for level. 
                 Valid float values are between 0 and 1.
+                Default is 0.1.
 
             random_state (int): Sets the underlying random seed at model initialization time.
         """
         self.data_schema = data_schema
         self.random_state = random_state
         self.init_period = int(init_period)
-        if alpha == "auto":
-            self.alpha = get_smoothing_factor(self.data_schema.frequency)
-        else:
-            alpha = float(alpha)
-            if alpha < 0 or alpha > 1:
-                raise ValueError("alpha must be between 0 and 1")
-            self.alpha = alpha
+        self.alpha = float(alpha)
         self._is_trained = False
         self.kwargs = kwargs
         self.history_length = None
