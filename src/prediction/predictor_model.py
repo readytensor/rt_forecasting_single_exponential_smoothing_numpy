@@ -13,22 +13,20 @@ PREDICTOR_FILE_NAME = "predictor.joblib"
 
 
 class Forecaster:
-    """A wrapper class for the NaiveMean Forecaster.
+    """A Single Expoential Smoothing Forecaster Model."""
 
-    This class provides a consistent interface that can be used with other
-    Forecaster models.
-    """
-
-    model_name = "NaiveMean Forecaster"
+    model_name = "Single Expoential Smoothing Forecaster"
 
     def __init__(
         self,
         data_schema: ForecastingSchema,
         history_forecast_ratio: int = None,
+        init_period: int = 10,
+        alpha: float = 0.1,
         random_state: int = 0,
         **kwargs,
     ):
-        """Construct a new NaiveMean Forecaster
+        """Construct a new Single Expoential Smoothing Forecaster
 
         Args:
 
@@ -40,10 +38,19 @@ class Forecaster:
                 For example, if the forecast horizon is 20 and the history_forecast_ratio is 10,
                 history length will be 20*10 = 200 samples.
 
+            init_period (int):
+                The number of initial observations to use for initializing the mean.
+                Default is 10.
+
+            alpha (float):
+                Smoothing factor. Default is 0.1.
+
             random_state (int): Sets the underlying random seed at model initialization time.
         """
         self.data_schema = data_schema
         self.random_state = random_state
+        self.init_period = int(init_period)
+        self.alpha = float(alpha)
         self._is_trained = False
         self.kwargs = kwargs
         self.history_length = None
@@ -87,11 +94,22 @@ class Forecaster:
         self._is_trained = True
         self.data_schema = data_schema
 
-    def _fit_on_series(self, history: pd.DataFrame, data_schema: ForecastingSchema):
-        """Fit NaiveMean model to given individual series of data"""
+    def _fit_on_series(self, history: pd.DataFrame, data_schema):
+        """Fit model to given individual series of data using single exponential smoothing"""
         time_series = np.array(history[data_schema.target])
-        mean_value = np.mean(time_series)
-        return mean_value
+        
+        # Initialize the smoothed value as the mean of the first `init_period` observations
+        if len(time_series) < self.init_period:
+            # If there aren't enough data points, fallback to the mean of available data
+            smoothed_value = np.mean(time_series)
+        else:
+            smoothed_value = np.mean(time_series[:self.init_period])
+        
+        # Apply exponential smoothing to the rest of the data
+        for observation in time_series[self.init_period:]:
+            smoothed_value = self.alpha * observation + (1 - self.alpha) * smoothed_value
+        
+        return smoothed_value
 
     def predict(
         self, test_data: pd.DataFrame, prediction_col_name: str

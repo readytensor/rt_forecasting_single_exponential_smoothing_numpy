@@ -1,5 +1,6 @@
 {
   "history_forecast_ratio": 1,
-  "random_state": 0
-  
+  "random_state": 0,
+  "init_period": 10,
+  "alpha": 0.1
 }
